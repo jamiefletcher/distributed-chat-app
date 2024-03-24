@@ -4,19 +4,52 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+
+	"github.com/gorilla/websocket"
 )
 
-func basicEndpoint(w http.ResponseWriter, r *http.Request) {
+var upgrader = websocket.Upgrader{}
+
+func reader(conn *websocket.Conn) {
+	for {
+		// p is a []byte and messageType is an int
+		// with value websocket.BinaryMessage or websocket.TextMessage
+		// messageType, p, err := conn.ReadMessage()
+		_, p, err := conn.ReadMessage()
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		// cast p to string and print
+		fmt.Println(string(p))
+	}
+}
+
+func basicHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Basic endpoint")
 }
 
-func wsEndpoint(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Websocket endpoint")
+func wsHandler(w http.ResponseWriter, r *http.Request) {
+	// fmt.Fprintf(w, "Websocket endpoint")
+	// just return true for now for all origins
+	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
+
+	// upgrade connection to WebSocket
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	log.Println("Client connected")
+
+	// listen indefinitely for new messages
+	reader(conn)
 }
 
 func setupRoutes() {
-	http.HandleFunc("/", basicEndpoint)
-	http.HandleFunc("/ws", wsEndpoint)
+	http.HandleFunc("/", basicHandler)
+	http.HandleFunc("/ws", wsHandler)
 }
 
 func main() {
