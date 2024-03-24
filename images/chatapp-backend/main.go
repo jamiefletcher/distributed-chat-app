@@ -8,7 +8,10 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var upgrader = websocket.Upgrader{}
+var upgrader = websocket.Upgrader{
+	// just return true for now for all origins
+	CheckOrigin: func(r *http.Request) bool { return true },
+}
 
 func reader(conn *websocket.Conn) {
 	for {
@@ -21,7 +24,7 @@ func reader(conn *websocket.Conn) {
 			return
 		}
 		// cast p to string and print
-		fmt.Println(string(p))
+		log.Println(string(p))
 	}
 }
 
@@ -30,10 +33,6 @@ func basicHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func wsHandler(w http.ResponseWriter, r *http.Request) {
-	// fmt.Fprintf(w, "Websocket endpoint")
-	// just return true for now for all origins
-	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
-
 	// upgrade connection to WebSocket
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
