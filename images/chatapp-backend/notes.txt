@@ -1,1 +1,2 @@
 https://tutorialedge.net/golang/go-websocket-tutorial/
+https://www.nginx.com/blog/websocket-nginx/
