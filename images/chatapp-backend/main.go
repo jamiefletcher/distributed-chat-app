@@ -1,12 +1,30 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
+
+type msgRequest struct {
+	FirstId int `json:"first_id"`
+	LastId  int `json:"last_id"`
+}
+
+type Message struct {
+	Id      int
+	Name    string
+	Email   string
+	Date    time.Time
+	Topic   string
+	Content string
+}
+
+var nMsgs = 0
 
 var upgrader = websocket.Upgrader{
 	// just return true for now for all origins
@@ -23,15 +41,39 @@ func reader(conn *websocket.Conn) {
 			log.Println(err)
 			return
 		}
-		// cast p to string and print
-		log.Println(string(p))
+
+		req := msgRequest{}
+		json.Unmarshal(p, &req)
+
+		log.Printf("first_id: %d last_id: %d", req.FirstId, req.LastId)
 	}
 }
 
-func basicHandler(w http.ResponseWriter, r *http.Request) {
-	// fmt.Fprintf(w, "Basic endpoint")
-	fmt.Printf("%s request received", r.Method)
-	fmt.Println(r.Body)
+func postHandler(w http.ResponseWriter, r *http.Request) {
+	const maxMem = 500 << 10 // 500 KB
+	switch r.Method {
+	case "POST":
+		// frontend POSTS form with Content-Type: multipart/form-data
+		if err := r.ParseMultipartForm(maxMem); err != nil {
+			log.Println(err)
+			return
+		}
+		log.Println("New message received")
+		// TODO get message IDs from redis
+		nMsgs++
+		msg := Message{
+			Id:      nMsgs,
+			Name:    r.FormValue("name"),
+			Email:   r.FormValue("email"),
+			Date:    time.Now(),
+			Topic:   r.FormValue("topic"),
+			Content: r.FormValue("content"),
+		}
+		log.Printf("%+v", msg)
+	default:
+		log.Println("Only POST requests supported")
+		return
+	}
 }
 
 func wsHandler(w http.ResponseWriter, r *http.Request) {
@@ -49,7 +91,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func setupRoutes() {
-	http.HandleFunc("/chatapp/send", basicHandler)
+	http.HandleFunc("/chatapp/send", postHandler)
 	http.HandleFunc("/chatapp/websocket", wsHandler)
 }
 
