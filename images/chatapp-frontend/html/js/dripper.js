@@ -119,14 +119,16 @@ var websocket;
 
 // Initialization, called once upon page load:
 openChannel = function() {
-    var loc = window.location, new_uri;
-    if (loc.protocol === "https:") {
-        new_uri = "wss:";
-    } else {
-        new_uri = "ws:";
-    }
-    new_uri += "//" + loc.host;
-    new_uri += loc.pathname + "chatapp/websocket";
+    // var loc = window.location, new_uri;
+    // if (loc.protocol === "https:") {
+    //     new_uri = "wss:";
+    // } else {
+    //     new_uri = "ws:";
+    // }
+    // new_uri += "//" + loc.host;
+    // new_uri += loc.pathname + "chatapp/websocket";
+    // console.log("websocket uri: " + new_uri);
+    var new_url = "ws://chatapp-backend:14222/chatapp/websocket"
     websocket = new WebSocket(new_uri);
     websocket.onopen = onOpen;
     websocket.onmessage = onMessage;

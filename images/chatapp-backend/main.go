@@ -40,19 +40,19 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Println("Client connected")
+	fmt.Println("Client connected")
 
 	// listen indefinitely for new messages
 	reader(conn)
 }
 
 func setupRoutes() {
-	http.HandleFunc("/", basicHandler)
-	http.HandleFunc("/ws", wsHandler)
+	http.HandleFunc("/chatapp/send", basicHandler)
+	http.HandleFunc("/chatapp/websocket", wsHandler)
 }
 
 func main() {
 	fmt.Println("Hello world")
 	setupRoutes()
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(":14222", nil))
 }
