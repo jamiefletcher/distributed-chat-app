@@ -1,15 +1,12 @@
 services:
   redis:
-    # container_name: "redis"
     image: harbor.pacslab.ca/218287649/redis:7.0.8-alpine
 
   chatapp-backend:
-    # container_name: "chatapp-backend"
-    image: harbor.pacslab.ca/218287649/chatapp-backend-py
-    # image: harbor.pacslab.ca/218287649/chatapp-backend-go
+    # image: harbor.pacslab.ca/218287649/chatapp-backend-py
+    image: harbor.pacslab.ca/218287649/chatapp-backend-go
 
   chatapp-frontend:
-    # container_name: "chatapp-frontend"
     image: harbor.pacslab.ca/218287649/chatapp-frontend
     ports:
      - "4222:4222"

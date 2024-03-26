@@ -29,7 +29,9 @@ func reader(conn *websocket.Conn) {
 }
 
 func basicHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Basic endpoint")
+	// fmt.Fprintf(w, "Basic endpoint")
+	fmt.Printf("%s request received", r.Method)
+	fmt.Println(r.Body)
 }
 
 func wsHandler(w http.ResponseWriter, r *http.Request) {
