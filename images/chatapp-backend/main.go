@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/redis/go-redis/v9"
 )
 
 type msgRequest struct {
@@ -88,6 +90,22 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		// TODO store messages in Redis
 		// TODO get message IDs from redis
+
+		// Redis
+		redisClient := redis.NewClient(&redis.Options{
+			Addr:     "redis:6379",
+			Password: "",
+			DB:       0,
+		})
+
+		ctx := context.Background()
+		pong, err := redisClient.Ping(ctx).Result()
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		log.Println(pong)
+
 		nMsgs++
 		msg.Id = nMsgs
 		msgStore = append(msgStore, msg)
