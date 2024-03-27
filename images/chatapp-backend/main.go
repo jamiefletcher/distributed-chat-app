@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"log"
 	"net/http"
 	"time"
@@ -16,15 +17,17 @@ type msgRequest struct {
 }
 
 type Message struct {
-	Id      int
-	Name    string
-	Email   string
-	Date    time.Time
-	Topic   string
-	Content string
+	Id      int    `json:"id"`
+	Name    string `json:"name"`
+	Email   string `json:"email"`
+	Date    string `json:"date"`
+	Topic   string `json:"topic"`
+	Content string `json:"content"`
 }
 
+// TODO replace these with Redis
 var nMsgs = 0
+var msgStore []Message
 
 var upgrader = websocket.Upgrader{
 	// just return true for now for all origins
@@ -33,42 +36,61 @@ var upgrader = websocket.Upgrader{
 
 func reader(conn *websocket.Conn) {
 	for {
-		// p is a []byte and messageType is an int
+		// p is a []byte and msgType is an int
 		// with value websocket.BinaryMessage or websocket.TextMessage
-		// messageType, p, err := conn.ReadMessage()
-		_, p, err := conn.ReadMessage()
+		msgType, p, err := conn.ReadMessage()
 		if err != nil {
 			log.Println(err)
 			return
 		}
-
+		log.Printf("Received a request for messages from %s", conn.RemoteAddr())
 		req := msgRequest{}
 		json.Unmarshal(p, &req)
+		// frontend can request all messages with LastId == -1
+		if req.LastId < 0 {
+			req.LastId = nMsgs
+		}
+		// only respond if we have messages
+		if req.LastId > 0 {
+			reply, err := json.Marshal(msgStore[req.FirstId:req.LastId])
+			if err != nil {
+				log.Println(err)
+				return
+			}
 
-		log.Printf("first_id: %d last_id: %d", req.FirstId, req.LastId)
+			log.Println(string(reply))
+
+			// TODO use Redis to broadcast this instead of writing directly back
+			if err := conn.WriteMessage(msgType, reply); err != nil {
+				log.Println(err)
+				return
+			}
+		}
 	}
 }
 
 func postHandler(w http.ResponseWriter, r *http.Request) {
-	const maxMem = 500 << 10 // 500 KB
 	switch r.Method {
 	case "POST":
-		// frontend POSTS form with Content-Type: multipart/form-data
+		// frontend POSTS with Content-Type: multipart/form-data
+		const maxMem = 500 << 10 // 500 KB
 		if err := r.ParseMultipartForm(maxMem); err != nil {
 			log.Println(err)
 			return
 		}
 		log.Println("New message received")
+		msg := Message{
+			Name:    html.EscapeString(r.FormValue("name")),
+			Email:   html.EscapeString(r.FormValue("email")),
+			Date:    html.EscapeString(time.Now().Format(time.ANSIC)),
+			Topic:   html.EscapeString(r.FormValue("topic")),
+			Content: html.EscapeString(r.FormValue("content")),
+		}
+		// TODO store messages in Redis
 		// TODO get message IDs from redis
 		nMsgs++
-		msg := Message{
-			Id:      nMsgs,
-			Name:    r.FormValue("name"),
-			Email:   r.FormValue("email"),
-			Date:    time.Now(),
-			Topic:   r.FormValue("topic"),
-			Content: r.FormValue("content"),
-		}
+		msg.Id = nMsgs
+		msgStore = append(msgStore, msg)
 		log.Printf("%+v", msg)
 	default:
 		log.Println("Only POST requests supported")
