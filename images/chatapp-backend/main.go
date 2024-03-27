@@ -14,12 +14,12 @@ import (
 )
 
 type msgRequest struct {
-	FirstId int `json:"first_id"`
-	LastId  int `json:"last_id"`
+	FirstId int64 `json:"first_id"`
+	LastId  int64 `json:"last_id"`
 }
 
 type Message struct {
-	Id      int    `json:"id"`
+	Id      int64  `json:"id"`
 	Name    string `json:"name"`
 	Email   string `json:"email"`
 	Date    string `json:"date"`
@@ -27,8 +27,12 @@ type Message struct {
 	Content string `json:"content"`
 }
 
+const REDIS_CHANNEL = "messages"
+const REDIS_ID_KEY = "id"
+const REDIS_MESSAGES_KEY = "messages"
+
 // TODO replace these with Redis
-var nMsgs = 0
+var nMsgs int64 = 0
 var msgStore []Message
 
 var upgrader = websocket.Upgrader{
@@ -36,39 +40,38 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-func reader(conn *websocket.Conn) {
-	for {
-		// p is a []byte and msgType is an int
-		// with value websocket.BinaryMessage or websocket.TextMessage
-		msgType, p, err := conn.ReadMessage()
+func reader(conn *websocket.Conn) error {
+	// p is a []byte and msgType is an int
+	// with value websocket.BinaryMessage or websocket.TextMessage
+	msgType, p, err := conn.ReadMessage()
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	log.Printf("Request for messages received from %s", conn.RemoteAddr())
+	req := msgRequest{}
+	json.Unmarshal(p, &req)
+	// frontend can request all messages with LastId == -1
+	if req.LastId < 0 {
+		req.LastId = nMsgs
+	}
+	// only respond if we have messages
+	if req.LastId > 0 {
+		reply, err := json.Marshal(msgStore[req.FirstId:req.LastId])
 		if err != nil {
 			log.Println(err)
-			return
+			return err
 		}
-		log.Printf("Received a request for messages from %s", conn.RemoteAddr())
-		req := msgRequest{}
-		json.Unmarshal(p, &req)
-		// frontend can request all messages with LastId == -1
-		if req.LastId < 0 {
-			req.LastId = nMsgs
-		}
-		// only respond if we have messages
-		if req.LastId > 0 {
-			reply, err := json.Marshal(msgStore[req.FirstId:req.LastId])
-			if err != nil {
-				log.Println(err)
-				return
-			}
 
-			log.Println(string(reply))
+		log.Println(string(reply))
 
-			// TODO use Redis to broadcast this instead of writing directly back
-			if err := conn.WriteMessage(msgType, reply); err != nil {
-				log.Println(err)
-				return
-			}
+		// TODO use Redis to broadcast this instead of writing directly back
+		if err := conn.WriteMessage(msgType, reply); err != nil {
+			log.Println(err)
+			return err
 		}
 	}
+	return nil
 }
 
 func postHandler(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +83,7 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 			log.Println(err)
 			return
 		}
-		log.Println("New message received")
+		log.Printf("New message received from %s", r.RemoteAddr)
 		msg := Message{
 			Name:    html.EscapeString(r.FormValue("name")),
 			Email:   html.EscapeString(r.FormValue("email")),
@@ -92,22 +95,40 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 		// TODO get message IDs from redis
 
 		// Redis
-		redisClient := redis.NewClient(&redis.Options{
+		redisdb := redis.NewClient(&redis.Options{
 			Addr:     "redis:6379",
 			Password: "",
 			DB:       0,
 		})
 
 		ctx := context.Background()
-		pong, err := redisClient.Ping(ctx).Result()
+		// Get ID for next message from Redis
+		// This isn't ideal for reasons noted below
+		msgId, err := redisdb.Incr(ctx, REDIS_ID_KEY).Result()
 		if err != nil {
 			log.Println(err)
 			return
 		}
-		log.Println(pong)
+		msg.Id = msgId
+
+		// Marshal message into json so we can store in Redis and publish
+		msgJson, err := json.Marshal(msg)
+		if err != nil {
+			// This leaves us in a bad state where msg.Id is incremented but
+			// the message was not added to Redis (because json.Marshal fails)
+			log.Fatal(err)
+			return
+		}
+
+		// Push new message into message list in Redis
+		if err := redisdb.RPush(ctx, REDIS_MESSAGES_KEY, msgJson).Err(); err != nil {
+			// This leaves us in a bad state where msg.Id is incremented but
+			// the message itself was not added to Redis
+			log.Fatal(err)
+			return
+		}
 
 		nMsgs++
-		msg.Id = nMsgs
 		msgStore = append(msgStore, msg)
 		log.Printf("%+v", msg)
 	default:
@@ -126,8 +147,11 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Println("Client connected")
 
-	// listen indefinitely for new messages
-	reader(conn)
+	// listen for new messages
+	// if we get an error, just close down and let client restart
+	for err == nil {
+		err = reader(conn)
+	}
 }
 
 func setupRoutes() {

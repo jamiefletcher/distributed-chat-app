@@ -1,2 +1,5 @@
 https://tutorialedge.net/golang/go-websocket-tutorial/
 https://www.nginx.com/blog/websocket-nginx/
+https://redis.io/commands/rpush/
+https://pkg.go.dev/github.com/go-redis/redis#Client.Incr
+https://stackoverflow.com/questions/53697507/save-generic-struct-to-redis
