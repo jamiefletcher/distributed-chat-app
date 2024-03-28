@@ -128,6 +128,12 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Publish new message to clients subscribed to Redis channel
+		if err := redisdb.Publish(ctx, REDIS_CHANNEL, msgJson).Err(); err != nil {
+			log.Println(err)
+			return
+		}
+
 		nMsgs++
 		msgStore = append(msgStore, msg)
 		log.Printf("%+v", msg)
