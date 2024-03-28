@@ -40,13 +40,13 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-func reader(conn *websocket.Conn) error {
+func loadStoredMsgs(conn *websocket.Conn) {
 	// p is a []byte and msgType is an int
 	// with value websocket.BinaryMessage or websocket.TextMessage
 	msgType, p, err := conn.ReadMessage()
 	if err != nil {
 		log.Println(err)
-		return err
+		return
 	}
 	log.Printf("Request for messages received from %s", conn.RemoteAddr())
 	req := msgRequest{}
@@ -60,18 +60,42 @@ func reader(conn *websocket.Conn) error {
 		reply, err := json.Marshal(msgStore[req.FirstId:req.LastId])
 		if err != nil {
 			log.Println(err)
-			return err
+			return
 		}
 
-		log.Println(string(reply))
+		// log.Println(string(reply))
+		// log.Printf("messageType: %d", msgType)
 
-		// TODO use Redis to broadcast this instead of writing directly back
 		if err := conn.WriteMessage(msgType, reply); err != nil {
 			log.Println(err)
-			return err
+			return
 		}
 	}
-	return nil
+}
+
+func publishNewMsgs(conn *websocket.Conn) {
+	// Redis
+	redisdb := redis.NewClient(&redis.Options{
+		Addr:     "redis:6379",
+		Password: "",
+		DB:       0,
+	})
+	ctx := context.Background()
+
+	// Subscribe to Redis channel and close at the end
+	pubsub := redisdb.Subscribe(ctx, REDIS_CHANNEL)
+	defer pubsub.Close()
+
+	// TODO Bug in here somewhere. Message isn't being sent back...
+
+	ch := pubsub.Channel()
+	for msg := range ch {
+		log.Println(msg.Channel, msg.Payload)
+		err := conn.WriteMessage(websocket.TextMessage, []byte(msg.Payload))
+		if err != nil {
+			log.Println(err)
+		}
+	}
 }
 
 func postHandler(w http.ResponseWriter, r *http.Request) {
@@ -151,13 +175,16 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Println("Client connected")
+	log.Printf("Client connection from %s", r.RemoteAddr)
+	// handle initial request for stored messages
+	loadStoredMsgs(conn)
 
-	// listen for new messages
-	// if we get an error, just close down and let client restart
-	for err == nil {
-		err = reader(conn)
-	}
+	// listen for new messages published to Redis channel
+	publishNewMsgs(conn)
+	// on error, just close down websocket and let client restart
+	// for err == nil {
+	// 	err = reader(conn)
+	// }
 }
 
 func setupRoutes() {
