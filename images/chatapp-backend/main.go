@@ -186,7 +186,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	go loadStoredMsgs(conn, redisdb, ctx)
 
 	// listen for new messages published to Redis channel
-	// go publishNewMsgs(conn, redisdb, ctx)
+	go publishNewMsgs(conn, redisdb, ctx)
 }
 
 func setupRoutes() {
