@@ -31,10 +31,6 @@ const REDIS_CHANNEL = "messages"
 const REDIS_ID_KEY = "id"
 const REDIS_MESSAGES_KEY = "messages"
 
-// TODO replace these with Redis
-var nMsgs int64 = 0
-var msgStore []Message
-
 var upgrader = websocket.Upgrader{
 	// just return true for now for all origins
 	CheckOrigin: func(r *http.Request) bool { return true },
@@ -54,39 +50,26 @@ func loadStoredMsgs(conn *websocket.Conn, redisdb *redis.Client, ctx context.Con
 		req := msgRequest{}
 		json.Unmarshal(p, &req)
 
-		nnMsgs, err := redisdb.Get(ctx, REDIS_ID_KEY).Result()
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		log.Println(nMsgs, nnMsgs)
-
-		messages, err := redisdb.LRange(ctx, REDIS_MESSAGES_KEY, req.FirstId, req.LastId).Result()
+		encodedMsgs, err := redisdb.LRange(ctx, REDIS_MESSAGES_KEY, req.FirstId, req.LastId).Result()
 		if err != nil {
 			log.Println(err)
 			return
 		}
 
-		for _, m := range messages {
-			log.Println(m)
+		messages := []Message{}
+		for _, m := range encodedMsgs {
+			msg := Message{}
+			json.Unmarshal([]byte(m), &msg)
+			messages = append(messages, msg)
 		}
 
-		// frontend can request all messages with LastId == -1
-		if req.LastId < 0 {
-			req.LastId = nMsgs
-		}
-		// only respond if we have messages
-		if req.LastId > 0 {
-			reply, err := json.Marshal(msgStore[req.FirstId:req.LastId])
+		if len(messages) > 0 {
+			rpl, err := json.Marshal(messages)
 			if err != nil {
 				log.Println(err)
 				return
 			}
-
-			// log.Println(string(reply))
-			// log.Printf("messageType: %d", msgType)
-
-			if err := conn.WriteMessage(msgType, reply); err != nil {
+			if err := conn.WriteMessage(msgType, rpl); err != nil {
 				log.Println(err)
 				return
 			}
@@ -175,10 +158,6 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 			log.Println(err)
 			return
 		}
-
-		nMsgs++
-		msgStore = append(msgStore, msg)
-		log.Printf("%+v", msg)
 	default:
 		log.Println("Only POST requests supported")
 		return
@@ -204,10 +183,10 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// handle initial request for stored messages
-	// go loadStoredMsgs(conn, redisdb, ctx)
+	go loadStoredMsgs(conn, redisdb, ctx)
 
 	// listen for new messages published to Redis channel
-	go publishNewMsgs(conn, redisdb, ctx)
+	// go publishNewMsgs(conn, redisdb, ctx)
 }
 
 func setupRoutes() {
