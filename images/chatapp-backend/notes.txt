@@ -5,3 +5,4 @@ https://pkg.go.dev/github.com/go-redis/redis#Client.Incr
 https://stackoverflow.com/questions/53697507/save-generic-struct-to-redis
 https://github.com/redis/go-redis/blob/master/example_test.go
 https://redis.uptrace.dev/guide/go-redis-pubsub.html
+https://stackoverflow.com/questions/67030955/get-websocket-error-close-sent-when-i-navigate-to-other-page

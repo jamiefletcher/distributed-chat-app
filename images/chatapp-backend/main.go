@@ -40,57 +40,68 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-func loadStoredMsgs(conn *websocket.Conn) {
+func loadStoredMsgs(conn *websocket.Conn, redisdb *redis.Client, ctx context.Context) {
 	// p is a []byte and msgType is an int
 	// with value websocket.BinaryMessage or websocket.TextMessage
-	msgType, p, err := conn.ReadMessage()
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	log.Printf("Request for messages received from %s", conn.RemoteAddr())
-	req := msgRequest{}
-	json.Unmarshal(p, &req)
-	// frontend can request all messages with LastId == -1
-	if req.LastId < 0 {
-		req.LastId = nMsgs
-	}
-	// only respond if we have messages
-	if req.LastId > 0 {
-		reply, err := json.Marshal(msgStore[req.FirstId:req.LastId])
+	defer conn.Close()
+	for {
+		msgType, p, err := conn.ReadMessage()
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		log.Printf("Request for messages received from %s", conn.RemoteAddr())
+		req := msgRequest{}
+		json.Unmarshal(p, &req)
+
+		nnMsgs, err := redisdb.Get(ctx, REDIS_ID_KEY).Result()
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		log.Println(nMsgs, nnMsgs)
+
+		messages, err := redisdb.LRange(ctx, REDIS_MESSAGES_KEY, req.FirstId, req.LastId).Result()
 		if err != nil {
 			log.Println(err)
 			return
 		}
 
-		// log.Println(string(reply))
-		// log.Printf("messageType: %d", msgType)
+		for _, m := range messages {
+			log.Println(m)
+		}
 
-		if err := conn.WriteMessage(msgType, reply); err != nil {
-			log.Println(err)
-			return
+		// frontend can request all messages with LastId == -1
+		if req.LastId < 0 {
+			req.LastId = nMsgs
+		}
+		// only respond if we have messages
+		if req.LastId > 0 {
+			reply, err := json.Marshal(msgStore[req.FirstId:req.LastId])
+			if err != nil {
+				log.Println(err)
+				return
+			}
+
+			// log.Println(string(reply))
+			// log.Printf("messageType: %d", msgType)
+
+			if err := conn.WriteMessage(msgType, reply); err != nil {
+				log.Println(err)
+				return
+			}
 		}
 	}
 }
 
-func publishNewMsgs(conn *websocket.Conn) {
-	// Redis
-	redisdb := redis.NewClient(&redis.Options{
-		Addr:     "redis:6379",
-		Password: "",
-		DB:       0,
-	})
-	ctx := context.Background()
-
+func publishNewMsgs(conn *websocket.Conn, redisdb *redis.Client, ctx context.Context) {
+	defer conn.Close()
 	// Subscribe to Redis channel and close at the end
 	pubsub := redisdb.Subscribe(ctx, REDIS_CHANNEL)
 	defer pubsub.Close()
 
-	// TODO Bug in here somewhere. Message isn't being sent back...
-
 	ch := pubsub.Channel()
 	for msg := range ch {
-		log.Println(msg.Channel, msg.Payload)
 		err := conn.WriteMessage(websocket.TextMessage, []byte(msg.Payload))
 		if err != nil {
 			log.Println(err)
@@ -115,8 +126,6 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 			Topic:   html.EscapeString(r.FormValue("topic")),
 			Content: html.EscapeString(r.FormValue("content")),
 		}
-		// TODO store messages in Redis
-		// TODO get message IDs from redis
 
 		// Redis
 		redisdb := redis.NewClient(&redis.Options{
@@ -124,8 +133,9 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 			Password: "",
 			DB:       0,
 		})
-
 		ctx := context.Background()
+
+		//////////////////// Replace with DB
 		// Get ID for next message from Redis
 		// This isn't ideal for reasons noted below
 		msgId, err := redisdb.Incr(ctx, REDIS_ID_KEY).Result()
@@ -135,7 +145,7 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		msg.Id = msgId
 
-		// Marshal message into json so we can store in Redis and publish
+		// Marshal message into json so we can store in Redis
 		msgJson, err := json.Marshal(msg)
 		if err != nil {
 			// This leaves us in a bad state where msg.Id is incremented but
@@ -149,6 +159,14 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 			// This leaves us in a bad state where msg.Id is incremented but
 			// the message itself was not added to Redis
 			log.Fatal(err)
+			return
+		}
+		///////////////////
+
+		// Re-encode the message as an array of messages (expected by frontend)
+		msgJson, err = json.Marshal([]Message{msg})
+		if err != nil {
+			log.Println(err)
 			return
 		}
 
@@ -176,15 +194,20 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("Client connection from %s", r.RemoteAddr)
+
+	// Redis
+	ctx := context.Background()
+	redisdb := redis.NewClient(&redis.Options{
+		Addr:     "redis:6379",
+		Password: "",
+		DB:       0,
+	})
+
 	// handle initial request for stored messages
-	loadStoredMsgs(conn)
+	// go loadStoredMsgs(conn, redisdb, ctx)
 
 	// listen for new messages published to Redis channel
-	publishNewMsgs(conn)
-	// on error, just close down websocket and let client restart
-	// for err == nil {
-	// 	err = reader(conn)
-	// }
+	go publishNewMsgs(conn, redisdb, ctx)
 }
 
 func setupRoutes() {
