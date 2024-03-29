@@ -11,9 +11,10 @@
     <div class="bottom"></div>
 
     <form action="chatapp/send" method="post" id="messageForm" onsubmit="postForm(this); document.getElementById('content').value=''; return false;">
-      Name: <input value="Jane Smith" name="name" id="name">
-      <div>Email: <input value="janes@yorku.ca" name="email" id="email">
-      <div>Topic: <input value="" name="topic" id="topic">
+      <div>Name: <input value="Jane Smith" name="name" id="name"></div>
+      <div>Email: <input value="janes@yorku.ca" name="email" id="email"></div>
+      <div>Topic: <input value="" name="topic" id="topic"></div>
+      <div>Ephemeral: <input type="checkbox" name="ephemeral" id="ephemeral"></div>
       <div><textarea name="content" id="content" rows="3" cols="60"
       onkeydown="return onKeyDown(event)"></textarea></div>
       <div><input type="submit" value="Send"></div>
