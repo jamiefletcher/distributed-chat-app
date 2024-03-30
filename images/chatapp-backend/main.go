@@ -110,6 +110,11 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 			Content: html.EscapeString(r.FormValue("content")),
 		}
 
+		// Detect if the message is ephemeral. Such messages should:
+		// 1. Be forward to other connected peers (as normal)
+		// 2. NOT be stored in the database (or Redis in this case)
+		ephemeral := r.FormValue("ephemeral") == "on"
+
 		// Redis
 		redisdb := redis.NewClient(&redis.Options{
 			Addr:     "redis:6379",
@@ -118,36 +123,35 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		ctx := context.Background()
 
-		//////////////////// Replace with DB
-		// Get ID for next message from Redis
-		// This isn't ideal for reasons noted below
-		msgId, err := redisdb.Incr(ctx, REDIS_ID_KEY).Result()
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		msg.Id = msgId
+		if !ephemeral {
+			// Get ID for next message from Redis. This isn't ideal for reasons noted below
+			msgId, err := redisdb.Incr(ctx, REDIS_ID_KEY).Result()
+			if err != nil {
+				log.Println(err)
+				return
+			}
+			msg.Id = msgId
 
-		// Marshal message into json so we can store in Redis
-		msgJson, err := json.Marshal(msg)
-		if err != nil {
-			// This leaves us in a bad state where msg.Id is incremented but
-			// the message was not added to Redis (because json.Marshal fails)
-			log.Fatal(err)
-			return
-		}
+			// Marshal message into json so we can store in Redis
+			msgJson, err := json.Marshal(msg)
+			if err != nil {
+				// This leaves us in a bad state where msg.Id is incremented but
+				// the message was not added to Redis (because json.Marshal fails)
+				log.Fatal(err)
+				return
+			}
 
-		// Push new message into message list in Redis
-		if err := redisdb.RPush(ctx, REDIS_MESSAGES_KEY, msgJson).Err(); err != nil {
-			// This leaves us in a bad state where msg.Id is incremented but
-			// the message itself was not added to Redis
-			log.Fatal(err)
-			return
+			// Push new message into message list in Redis
+			if err := redisdb.RPush(ctx, REDIS_MESSAGES_KEY, msgJson).Err(); err != nil {
+				// This leaves us in a bad state where msg.Id is incremented but
+				// the message itself was not added to Redis
+				log.Fatal(err)
+				return
+			}
 		}
-		///////////////////
 
 		// Re-encode the message as an array of messages (expected by frontend)
-		msgJson, err = json.Marshal([]Message{msg})
+		msgJson, err := json.Marshal([]Message{msg})
 		if err != nil {
 			log.Println(err)
 			return
