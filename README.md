@@ -1,4 +1,4 @@
-# distributed-systems
+# distributed-chat-app
 
 This repository contains a small distributed chat application I created as part of a [distributed systems](https://w2prod.sis.yorku.ca/Apps/WebObjects/cdm.woa/11/wo/mM2HtGh6XLfKLvwP8AE9yw/7.3.10.7.0.0.17) course at [York University](https://lassonde.yorku.ca/eecs/). The application was deployed and tested on a small Kubernetes cluster I deployed in Azure Cloud. The chat application supports multi-client and real-time communication using a distributed architecture.
 
