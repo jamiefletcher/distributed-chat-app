@@ -27,7 +27,7 @@ Like the example, my chat application consists of three components:
 
 The following diagram provides a high-level overview of the components of the chat application and shows the connections between them.
 
-Figure 1: Overview of Chat Application Components and Their Interactions
+![Figure 1: Overview of Chat Application Components and Their Interactions](docs/figures/fig1.png "Figure 1: Overview of Chat Application Components and Their Interactions")
 
 ### Frontend
 The frontend component of my chat application is built on the frontend supplied in the example application. The two notable changes from the reference implementation are:
@@ -74,12 +74,12 @@ To validate the performance of the ephemeral messages feature, the following tes
 - Have Bob send an ephemeral message by checking the corresponding checkbox. Confirm that Alice receives this message.
 - Connect a third client (Eve) and confirm that only one historical message is loaded. That is, Eve should see the first message sent by Alice but not the second (ephemeral) message sent by Bob since she was not connected to the chat application when this message was sent.
 
-Screenshots showing the above sequence of messages are provided below.
+The following screenshots demonstrate the sequence of messages described above.
 
-Figure 2: After sending the first (non-ephemeral) message with only one client connected (Alice)
+![Figure 2: After sending the first (non-ephemeral) message with only one client connected (Alice)](docs/figures/fig2.png "Figure 2: After sending the first (non-ephemeral) message with only one client connected (Alice)")
 
-Figure 3: Before sending the second (ephemeral) message with only two clients connected (Alice, Bob)
+![Figure 3: Before sending the second (ephemeral) message with only two clients connected (Alice, Bob)](docs/figures/fig3.png "Figure 3: Before sending the second (ephemeral) message with only two clients connected (Alice, Bob)")
 
-Figure 4: After sending the second (ephemeral) message with only two clients connected (Alice, Bob)
+![Figure 4: After sending the second (ephemeral) message with only two clients connected (Alice, Bob)](docs/figures/fig4.png "Figure 4: After sending the second (ephemeral) message with only two clients connected (Alice, Bob)")
 
-Figure 5: Three clients connected (Alice, Bob, Eve) but only two (Alice, Bob) see the previous ephemeral message
+![Figure 5: Three clients connected (Alice, Bob, Eve) but only two (Alice, Bob) see the previous ephemeral message](docs/figures/fig5.png "Figure 5: Three clients connected (Alice, Bob, Eve) but only two (Alice, Bob) see the previous ephemeral message")
