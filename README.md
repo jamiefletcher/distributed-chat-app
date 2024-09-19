@@ -1,6 +1,6 @@
 # distributed-chat-app
 
-This is a small distributed chat application (frontend + backend + DB) created as part of a [distributed systems](https://w2prod.sis.yorku.ca/Apps/WebObjects/cdm.woa/11/wo/mM2HtGh6XLfKLvwP8AE9yw/7.3.10.7.0.0.17) course at [York University](https://lassonde.yorku.ca/eecs/). The application was deployed and tested on a small Kubernetes cluster I had previously deployed in Azure Cloud. The chat application supports multi-client and real-time communication using a distributed architecture.
+This is a small distributed chat application (frontend + backend + DB) created as part of a [distributed systems](https://calendars.students.yorku.ca/academic-calendar#/courses/ByScT3yst) course at [York University](https://lassonde.yorku.ca/eecs/). The application was deployed and tested on a small Kubernetes cluster I had previously deployed in Azure Cloud. The chat application supports multi-client and real-time communication using a distributed architecture.
 
 ## Requirements
 The chat application was implemented in two parts:
