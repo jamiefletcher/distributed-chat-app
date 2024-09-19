@@ -1,11 +1,11 @@
 # distributed-chat-app
 
-This repository contains a small distributed chat application I created as part of a [distributed systems](https://w2prod.sis.yorku.ca/Apps/WebObjects/cdm.woa/11/wo/mM2HtGh6XLfKLvwP8AE9yw/7.3.10.7.0.0.17) course at [York University](https://lassonde.yorku.ca/eecs/). The application was deployed and tested on a small Kubernetes cluster I deployed in Azure Cloud. The chat application supports multi-client and real-time communication using a distributed architecture.
+This is a small distributed chat application (frontend + backend + DB) created as part of a [distributed systems](https://w2prod.sis.yorku.ca/Apps/WebObjects/cdm.woa/11/wo/mM2HtGh6XLfKLvwP8AE9yw/7.3.10.7.0.0.17) course at [York University](https://lassonde.yorku.ca/eecs/). The application was deployed and tested on a small Kubernetes cluster I had previously deployed in Azure Cloud. The chat application supports multi-client and real-time communication using a distributed architecture.
 
 ## Requirements
 The chat application was implemented in two parts:
-- Part I: Starting with an example [chat application](https://github.com/pacslab/chatapp), which is implemented in JavaScript/HTML and Python, reimplement parts of the application such that the backend is written in Go language.
-- Part II: Once the solution for Part I is working, extend the chat application to implement one additional feature.
+- Part I: Starting with an example [chat application](https://github.com/pacslab/chatapp) written in JavaScript/HTML and Python, entirely reimplement the backend in Go language and modify the frontend as needed.
+- Part II: Once the solution for Part I is working, extend the chat application to implement one new feature.
 
 The detailed requirements for Part I were as follows:
 - Implement a distributed chat application that supports multi-client and real-time communication using Go. When a client sends a new message, other clients can see it immediately.
@@ -15,12 +15,12 @@ The detailed requirements for Part I were as follows:
 - Define Kubernetes objects in chatapp.yaml to properly coordinate components of the application. Use node port `30222` to expose the web user interface.
 - After running the appropriate Kubernetes commands, the web user interface should be accessible at `http://MASTER_IP:30222`
 
-For Part II, I implemented the **ephemeral messaging** feature, which had the following additional requirements:
+For Part II, I implemented **ephemeral messaging**, which had the following additional requirements:
 - Provide the ability to send ephemeral messages. Such messages will not be stored on the server, and they will just be broadcast in real-time to whoever has the web user interface open and receiving messages now.
 
 ## System Architecture
 ### Overview
-Like the example, my chat application consists of three components:
+The chat application consists of three components:
 - A frontend application that provides the user interface and submits messages to the backend via a Websocket;
 - A backend server that processes the messages sent by the frontend (via HTTP POST request) and forwards the messages on to all connected clients via their respective Websockets; and
 - A Redis server that stores the messages and provides a publish-subscribe (pubsub) facility that allows all connected clients to receive messages in real time.
@@ -30,7 +30,7 @@ The following diagram provides a high-level overview of the components of the ch
 ![Figure 1: Overview of Chat Application Components and Their Interactions](docs/figures/fig1.png "Figure 1: Overview of Chat Application Components and Their Interactions")
 
 ### Frontend
-The frontend component of my chat application is built on the frontend supplied in the example application. The two notable changes from the reference implementation are:
+The two notable changes from the reference frontend implementation are:
 - Removal of the UWSGI settings from the Nginx configuration file and replacement of these settings with a standard reverse proxy configuration that also enables the upgrade to a Websocket connection.
 - Addition of a checkbox to the user interface to enable the user to select/deselect sending ephemeral messages.
 
@@ -44,7 +44,7 @@ The Nginx server can serve multiple clients at once. Each client establishes its
 
 ### Backend
 The backend is implemented in Go and uses the [Gorilla](https://github.com/gorilla/websocket) library for its Websocket implementation and the [go-redis](https://github.com/redis/go-redis/) library for the Redis client implementation. The backend receives (1) new messages and (2) requests for historical messages from the frontend. These two types of requests are handled by different endpoints:
-- The `/chatapp/send endpoint` is a standard HTTP endpoint that accepts POST requests that forward a new chat message from a client via the frontend reverse proxy. The message encapsulates a MultiPart Form object, which contains the following data: name of the sender, email of the sender, topic of the message, and content of the message. The Go handler for this endpoint retrieves these data from the Form object, converts the data to a Go object and appends current time/date. The message object is then (optionally) stored in Redis and published to the Redis “messages” channel (as discussed below).
+- The `/chatapp/send` endpoint is a standard HTTP endpoint that accepts POST requests that forward a new chat message from a client via the frontend reverse proxy. The message encapsulates a MultiPart Form object, which contains the following data: name of the sender, email of the sender, topic of the message, and content of the message. The Go handler for this endpoint retrieves these data from the Form object, converts the data to a Go object and appends current time/date. The message object is then (optionally) stored in Redis and published to the Redis “messages” channel (as discussed below).
 - The `/chatapp/websocket` endpoint accepts a standard HTTP connection but then upgrades the connection to use the Websocket protocol. Once established, the Websocket is a two-way connection. The frontend sends requests to the backend for stored messages via the Websocket. Conversely, the backend forwards both stored and broadcast messages to the frontend via the same Websocket.
 
 Requests from the frontend to the backend are handled concurrently by the backend server. Each new connection to the backend has its own instance of the endpoint handler, which establishes a unique Websocket for the frontend and backend to use. 
